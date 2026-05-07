@@ -105,24 +105,19 @@ function parseVerdict(text: string, account: Account): ResearchResult {
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  let account: Account;
-  let apiKey: string;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'Server is missing ANTHROPIC_API_KEY. Contact the admin.' },
+      { status: 500 }
+    );
+  }
 
+  let account: Account;
   try {
-    ({ account, apiKey } = await req.json());
+    ({ account } = await req.json());
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
-  }
-
-  if (!apiKey || typeof apiKey !== 'string') {
-    return NextResponse.json({ error: 'Claude API key is required.' }, { status: 400 });
-  }
-
-  if (!apiKey.startsWith('sk-ant-')) {
-    return NextResponse.json(
-      { error: 'Invalid API key format. Anthropic keys start with "sk-ant-".' },
-      { status: 400 }
-    );
   }
 
   if (!account || typeof account !== 'object') {
@@ -151,7 +146,7 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
 
     if (message.includes('401') || message.toLowerCase().includes('authentication') || message.toLowerCase().includes('unauthorized')) {
-      return NextResponse.json({ error: 'Invalid Claude API key. Please double-check your key.' }, { status: 401 });
+      return NextResponse.json({ error: 'Server-side API key was rejected by Anthropic. Contact the admin.' }, { status: 401 });
     }
     if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
       return NextResponse.json({ error: 'Claude rate limit hit. Please wait 10 seconds and try again.' }, { status: 429 });

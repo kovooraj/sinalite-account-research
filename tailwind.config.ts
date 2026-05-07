@@ -10,7 +10,7 @@ const config: Config = {
     extend: {
       colors: {
         sinalite: {
-          red: '#CC0000',
+          blue: '#024678',
           dark: '#1a1a1a',
         },
       },

@@ -30,7 +30,7 @@ export async function generatePdf(results: ResearchResult[]): Promise<void> {
   const errors = results.filter(r => r.error).length;
 
   // ── Header bar ──────────────────────────────────────────────────
-  doc.setFillColor(204, 0, 0);
+  doc.setFillColor(2, 70, 120);
   doc.rect(0, 0, pageW, 18, 'F');
 
   doc.setFontSize(14);

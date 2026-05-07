@@ -35,7 +35,11 @@ cd sinalite-account-research
 # 2. Install dependencies
 npm install
 
-# 3. Start the dev server
+# 3. Set the API key (one-time)
+cp .env.example .env.local
+# then edit .env.local and replace the placeholder with your real sk-ant-... key
+
+# 4. Start the dev server
 npm run dev
 ```
 
@@ -63,10 +67,15 @@ git push -u origin main
 1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
 2. Click **"Add New Project"**
 3. Select the `sinalite-account-research` repository
-4. Leave all settings as defaults (Vercel auto-detects Next.js)
-5. Click **"Deploy"**
+4. Under **Environment Variables**, add:
+   - **Name:** `ANTHROPIC_API_KEY`
+   - **Value:** your `sk-ant-...` key from [console.anthropic.com](https://console.anthropic.com)
+5. Leave the rest as defaults (Vercel auto-detects Next.js)
+6. Click **"Deploy"**
 
 Your app will be live at `https://sinalite-account-research.vercel.app` (or a custom domain you configure).
+
+> If you need to update the key later, go to **Project → Settings → Environment Variables** in Vercel and redeploy.
 
 > **Note on timeouts:** `vercel.json` sets a 30-second function timeout. This requires a **Vercel Hobby plan or above** (free plan defaults to 10 seconds, which may timeout on slow Claude responses). If you see timeout errors, upgrade to Hobby ($0/month for personal use) or Pro.
 

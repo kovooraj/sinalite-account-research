@@ -62,8 +62,6 @@ function rowBg(result: ResearchResult) {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [fileName, setFileName] = useState('');
   const [fileError, setFileError] = useState('');
@@ -114,7 +112,6 @@ export default function Home() {
   // ── Research loop ──────────────────────────────────────────────
 
   const startResearch = async () => {
-    if (!apiKey.trim()) { setGlobalError('Please enter your Claude API key.'); return; }
     if (accounts.length === 0) { setGlobalError('Please upload a file first.'); return; }
 
     setGlobalError('');
@@ -136,7 +133,7 @@ export default function Home() {
         const res = await fetch('/api/research', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account, apiKey: apiKey.trim() }),
+          body: JSON.stringify({ account }),
         });
 
         const data = await res.json();
@@ -224,13 +221,13 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* ── Header ── */}
-      <header className="bg-[#CC0000] shadow-md">
+      <header className="bg-[#024678] shadow-md">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight">SinaLite Account Research</h1>
-            <p className="text-red-200 text-xs mt-0.5">AI-powered print reseller classification · For internal use only</p>
+            <p className="text-blue-200 text-xs mt-0.5">AI-powered print reseller classification · For internal use only</p>
           </div>
-          <div className="text-red-200 text-xs text-right hidden sm:block">
+          <div className="text-blue-200 text-xs text-right hidden sm:block">
             Powered by Claude AI
           </div>
         </div>
@@ -250,75 +247,34 @@ export default function Home() {
               <span className="font-semibold text-yellow-700">uncertain</span> — then generate a colour-coded PDF report.
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Step 1 — API Key */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-6 h-6 rounded-full bg-[#CC0000] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">1</span>
-                  <h2 className="text-base font-semibold text-gray-900">Claude API Key</h2>
-                </div>
-                <p className="text-xs text-gray-500 mb-4 ml-8">
-                  Your key is sent directly to Claude for each research call and is never stored on the server.
-                </p>
-                <div className="relative">
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={e => setApiKey(e.target.value)}
-                    placeholder="sk-ant-api03-..."
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pr-20 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
-                  >
-                    {showKey ? 'Hide' : 'Show'}
-                  </button>
-                </div>
-                {apiKey && !apiKey.startsWith('sk-ant-') && (
-                  <p className="text-xs text-amber-600 mt-1.5">⚠ Anthropic keys typically start with "sk-ant-"</p>
+            {/* File Upload */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-base font-semibold text-gray-900">Upload Account File</h2>
+              <p className="text-xs text-gray-500 mb-4 mt-1">
+                CSV or Excel (.xlsx). Recognized columns: Company, Email, Website, Name, Address, Business Type.
+              </p>
+              <div
+                onDrop={handleDrop}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer ${
+                  dragOver ? 'border-[#024678] bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                }`}
+              >
+                <div className="text-3xl mb-2">📂</div>
+                <p className="text-sm text-gray-500 mb-3">Drag & drop or</p>
+                <label className="inline-block cursor-pointer bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700">
+                  Choose File
+                  <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileInput} className="hidden" />
+                </label>
+                {fileName && (
+                  <div className="mt-3 text-sm text-green-700 font-medium">
+                    ✓ {fileName} — {accounts.length} account{accounts.length !== 1 ? 's' : ''} loaded
+                  </div>
                 )}
-                <p className="text-xs text-gray-400 mt-2">
-                  Get your key at{' '}
-                  <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                    console.anthropic.com
-                  </a>
-                </p>
-              </div>
-
-              {/* Step 2 — File Upload */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-6 h-6 rounded-full bg-[#CC0000] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">2</span>
-                  <h2 className="text-base font-semibold text-gray-900">Upload Account File</h2>
-                </div>
-                <p className="text-xs text-gray-500 mb-4 ml-8">
-                  CSV or Excel (.xlsx). Recognized columns: Company, Email, Website, Name, Address, Business Type.
-                </p>
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer ${
-                    dragOver ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-3xl mb-2">📂</div>
-                  <p className="text-sm text-gray-500 mb-3">Drag & drop or</p>
-                  <label className="inline-block cursor-pointer bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700">
-                    Choose File
-                    <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileInput} className="hidden" />
-                  </label>
-                  {fileName && (
-                    <div className="mt-3 text-sm text-green-700 font-medium">
-                      ✓ {fileName} — {accounts.length} account{accounts.length !== 1 ? 's' : ''} loaded
-                    </div>
-                  )}
-                  {fileError && (
-                    <div className="mt-3 text-sm text-red-600">⚠ {fileError}</div>
-                  )}
-                </div>
+                {fileError && (
+                  <div className="mt-3 text-sm text-red-600">⚠ {fileError}</div>
+                )}
               </div>
             </div>
 
@@ -332,8 +288,8 @@ export default function Home() {
             {/* Start button */}
             <button
               onClick={startResearch}
-              disabled={!apiKey || accounts.length === 0}
-              className="w-full bg-[#CC0000] hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-bold text-lg shadow-md"
+              disabled={accounts.length === 0}
+              className="w-full bg-[#024678] hover:bg-[#013559] disabled:opacity-40 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-bold text-lg shadow-md"
             >
               {accounts.length > 0
                 ? `Start Research — ${accounts.length} account${accounts.length !== 1 ? 's' : ''}`
@@ -363,7 +319,7 @@ export default function Home() {
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                   <div
-                    className="bg-[#CC0000] h-3 rounded-full transition-all duration-700 ease-out"
+                    className="bg-[#024678] h-3 rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -408,7 +364,7 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handleDownloadPdf}
-                    className="flex-1 bg-[#CC0000] hover:bg-red-700 text-white py-3 rounded-xl font-bold"
+                    className="flex-1 bg-[#024678] hover:bg-[#013559] text-white py-3 rounded-xl font-bold"
                   >
                     ⬇ Download PDF Report
                   </button>
