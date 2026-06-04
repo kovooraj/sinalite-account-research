@@ -228,7 +228,7 @@ export default function Home() {
             <p className="text-blue-200 text-xs mt-0.5">AI-powered print reseller classification · For internal use only</p>
           </div>
           <div className="text-blue-200 text-xs text-right hidden sm:block">
-            Powered by Claude AI
+            Powered by GPT-4o mini
           </div>
         </div>
       </header>
@@ -241,7 +241,7 @@ export default function Home() {
             {/* How it works */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 text-sm text-blue-800">
               <strong>How it works:</strong>{' '}
-              Upload a CSV or Excel file containing account data (company, email, website, address, business type). Claude AI will analyze each account and classify them as{' '}
+              Upload a CSV or Excel file containing account data (company, email, website, address, business type). GPT-4o will analyze each account — including scraping their website — and classify them as{' '}
               <span className="font-semibold text-green-700">print resellers</span>,{' '}
               <span className="font-semibold text-red-700">non-resellers</span>, or{' '}
               <span className="font-semibold text-yellow-700">uncertain</span> — then generate a colour-coded PDF report.
@@ -299,7 +299,7 @@ export default function Home() {
             {/* Cost estimate note */}
             {accounts.length > 0 && (
               <p className="text-center text-xs text-gray-400">
-                Estimated cost: ~${(accounts.length * 0.003).toFixed(2)} USD on Claude Sonnet · ~{Math.ceil(accounts.length * 8 / 60)} min
+                Estimated cost: ~${(accounts.length * 0.001).toFixed(2)} USD on GPT-4o mini · ~{Math.ceil(accounts.length * 10 / 60)} min
               </p>
             )}
           </>
@@ -465,7 +465,7 @@ export default function Home() {
 
       {/* ── Footer ── */}
       <footer className="text-center text-xs text-gray-400 py-5 border-t border-gray-200 mt-4">
-        SinaLite Internal Tool · Powered by Claude AI ·{' '}
+        SinaLite Internal Tool · Powered by OpenAI ·{' '}
         <span className="italic">Results are AI-generated and should be reviewed by a team member before approval decisions are made.</span>
       </footer>
     </div>

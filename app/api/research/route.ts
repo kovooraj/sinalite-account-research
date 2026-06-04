@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { Account, ResearchResult, Verdict, Confidence } from '@/lib/types';
 
-// Vercel: allow up to 30 seconds per account (requires Hobby+ plan)
-export const maxDuration = 30;
+export const maxDuration = 45;
+
+// ── Website scraper ───────────────────────────────────────────────────────────
+async function scrapeWebsite(url: string): Promise<string> {
+  try {
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(fullUrl, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SinaLiteBot/1.0)' },
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) return '';
+
+    const html = await res.text();
+
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 3000);
+
+    return text;
+  } catch {
+    return '';
+  }
+}
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are a business analyst for SinaLite, a Canadian wholesale commercial printing company. SinaLite sells to the trade ONLY — customers must be businesses that buy printed products to resell or use in client work.
@@ -33,14 +63,15 @@ Your task is to analyze account data and decide whether a business qualifies as 
 
 ═══ ANALYSIS RULES ═══
 1. Treat the self-declared "Business Type" as a HINT ONLY — it is often wrong.
-2. Email domain is a strong signal:
+2. Website content (if provided) is the STRONGEST signal — prioritize what the business actually says it does.
+3. Email domain is a strong signal:
    - Business domain (e.g., @365design.com, @quickprints.ca) → positive
    - Personal domain (gmail, yahoo, hotmail, outlook, icloud) → negative signal, not disqualifying alone
-3. Website / email domain name is a strong signal (e.g., printserve.com, designco.ca, signsbysarah.com).
-4. Company name is a strong signal (e.g., "XYZ Printing", "ABC Design Studio", "QuickSigns").
-5. Address / city context can help (e.g., industrial area suggests a printer; suburban home address suggests consumer).
-6. When signals are weak, sparse, or contradictory → classify as "uncertain" with low/medium confidence.
-7. A Gmail address + no website + vague company name → almost certainly "uncertain" or review manually.
+4. Website / email domain name is a strong signal (e.g., printserve.com, designco.ca, signsbysarah.com).
+5. Company name is a strong signal (e.g., "XYZ Printing", "ABC Design Studio", "QuickSigns").
+6. Address / city context can help (e.g., industrial area suggests a printer; suburban home address suggests consumer).
+7. When signals are weak, sparse, or contradictory → classify as "uncertain" with low/medium confidence.
+8. A Gmail address + no website + vague company name → almost certainly "uncertain" or review manually.
 
 ═══ OUTPUT FORMAT ═══
 Return ONLY a valid JSON object. No markdown code fences, no extra text, no explanation outside the JSON.
@@ -54,7 +85,7 @@ Return ONLY a valid JSON object. No markdown code fences, no extra text, no expl
 }`;
 
 // ── Build user message ────────────────────────────────────────────────────────
-function buildPrompt(account: Account): string {
+function buildPrompt(account: Account, websiteContent: string): string {
   const knownKeys = ['id', 'name', 'firstName', 'lastName', 'company', 'email', 'website', 'address', 'city', 'province', 'country', 'postalCode', 'businessType', 'phone'];
 
   const addressParts = [account.address, account.city, account.province, account.postalCode, account.country].filter(Boolean).join(', ');
@@ -68,25 +99,30 @@ function buildPrompt(account: Account): string {
   if (account.phone) lines.push(`Phone: ${account.phone}`);
   if (account.businessType) lines.push(`Self-Declared Business Type (hint only): ${account.businessType}`);
 
-  // Append any extra columns from the CSV we don't explicitly know about
   for (const [key, val] of Object.entries(account)) {
     if (val && !knownKeys.includes(key)) {
       lines.push(`${key}: ${val}`);
     }
   }
 
-  if (lines.length === 0) {
-    lines.push('(No account data provided)');
+  if (lines.length === 0) lines.push('(No account data provided)');
+
+  let prompt = `Analyze this SinaLite account and determine if they qualify as a print reseller:\n\n${lines.join('\n')}`;
+
+  if (websiteContent) {
+    prompt += `\n\n═══ WEBSITE CONTENT (scraped live) ═══\n${websiteContent}`;
+  } else if (account.website) {
+    prompt += `\n\n(Website was provided but could not be scraped — rely on other signals.)`;
   }
 
-  return `Analyze this SinaLite account and determine if they qualify as a print reseller:\n\n${lines.join('\n')}\n\nReturn your JSON verdict only.`;
+  prompt += `\n\nReturn your JSON verdict only.`;
+  return prompt;
 }
 
-// ── Parse Claude's response ───────────────────────────────────────────────────
+// ── Parse response ────────────────────────────────────────────────────────────
 function parseVerdict(text: string, account: Account): ResearchResult {
-  // Find JSON object in response (in case Claude adds any surrounding text)
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error(`No JSON found in Claude response: "${text.slice(0, 200)}"`);
+  if (!jsonMatch) throw new Error(`No JSON found in response: "${text.slice(0, 200)}"`);
 
   const parsed = JSON.parse(jsonMatch[0]);
 
@@ -105,10 +141,10 @@ function parseVerdict(text: string, account: Account): ResearchResult {
 
 // ── POST handler ──────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Server is missing ANTHROPIC_API_KEY. Contact the admin.' },
+      { error: 'Server is missing OPENAI_API_KEY. Contact the admin.' },
       { status: 500 }
     );
   }
@@ -125,34 +161,33 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const client = new Anthropic({ apiKey });
+    const websiteContent = account.website ? await scrapeWebsite(account.website) : '';
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+    const client = new OpenAI({ apiKey });
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildPrompt(account) }],
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: buildPrompt(account, websiteContent) },
+      ],
     });
 
-    const textBlock = response.content.find(c => c.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new Error('Claude returned no text content.');
-    }
+    const text = response.choices[0]?.message?.content ?? '';
+    if (!text) throw new Error('OpenAI returned no content.');
 
-    const result = parseVerdict(textBlock.text, account);
+    const result = parseVerdict(text, account);
     return NextResponse.json(result);
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
 
     if (message.includes('401') || message.toLowerCase().includes('authentication') || message.toLowerCase().includes('unauthorized')) {
-      return NextResponse.json({ error: 'Server-side API key was rejected by Anthropic. Contact the admin.' }, { status: 401 });
+      return NextResponse.json({ error: 'API key was rejected by OpenAI. Contact the admin.' }, { status: 401 });
     }
     if (message.includes('429') || message.toLowerCase().includes('rate limit')) {
-      return NextResponse.json({ error: 'Claude rate limit hit. Please wait 10 seconds and try again.' }, { status: 429 });
-    }
-    if (message.includes('529') || message.toLowerCase().includes('overloaded')) {
-      return NextResponse.json({ error: 'Claude is temporarily overloaded. Please try again in a moment.' }, { status: 503 });
+      return NextResponse.json({ error: 'OpenAI rate limit hit. Please wait and try again.' }, { status: 429 });
     }
 
     console.error('[research route] Error:', message);
